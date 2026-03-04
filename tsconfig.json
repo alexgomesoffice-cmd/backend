@@ -8,11 +8,8 @@
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "ESNext",
-    "types": [],
-    // For nodejs:
-    // "lib": ["esnext"],
-    // "types": ["node"],
-    // and npm install -D @types/node
+    "lib": ["esnext"],
+    "types": ["node"],
 
     // Other Outputs
     "sourceMap": true,
@@ -41,6 +38,6 @@
     "skipLibCheck": true,
     "moduleResolution": "bundler",
     "target": "ES2023",
-    "esModuleInterop": true
+    "esModuleInterop": true,
   }
 }
