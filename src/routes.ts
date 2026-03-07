@@ -32,6 +32,7 @@ import hotelSubAdminAuthRouter from "@/modules/auth/hotelSubAdmin/hotelSubAdmin.
 import endUserAuthRouter from "@/modules/auth/endUser/endUser.auth.routes";
 import systemAdminFeaturesRouter from "@/modules/admin/systemAdmin/systemAdmin.features.routes";
 import hotelsRouter from "@/modules/hotels/hotels.routes";
+import roomsRouter from "@/modules/rooms/rooms.routes";
 
 /**
  * Create main router
@@ -95,15 +96,27 @@ router.use("/system-admin", systemAdminFeaturesRouter);
 router.use("/hotels", hotelsRouter);
 
 /**
+ * Phase 8: Rooms Module
+ * Mounted at /api/rooms
+ * POST /api/rooms/create - Create new room type (protected)
+ * GET /api/rooms - List rooms with filters/pagination (public)
+ * GET /api/rooms/:id - Get room details (public)
+ * PUT /api/rooms/:id - Update room information (protected)
+ * PUT /api/rooms/:id/approval - Update approval status (protected)
+ * DELETE /api/rooms/:id - Delete room (protected)
+ */
+router.use("/rooms", roomsRouter);
+
+/**
  * TODO: Add more module routers as built
  * 
- * EXAMPLE (Phase 8):
- * import roomsRouter from "@/modules/rooms/rooms.routes';
- * router.use("/rooms", roomsRouter);
- *
  * EXAMPLE (Phase 9):
  * import bookingsRouter from "@/modules/bookings/bookings.routes';
  * router.use("/bookings", bookingsRouter);
+ *
+ * EXAMPLE (Phase 10):
+ * import profilesRouter from "@/modules/profiles/profiles.routes';
+ * router.use("/profiles", profilesRouter);
  */
 
 // Placeholder: Return a message that API is alive
