@@ -26,6 +26,7 @@
  */
 
 import { Router } from "express";
+import systemAdminAuthRouter from "@/modules/auth/systemAdmin/systemAdmin.auth.routes";
 
 /**
  * Create main router
@@ -34,15 +35,23 @@ import { Router } from "express";
 export const router = Router();
 
 /**
- * TODO: Add module routers as built
+ * Phase 2: System Admin Authentication
+ * Mounted at /api/auth/system-admin
+ * POST /api/auth/system-admin/login - System admin login
+ * POST /api/auth/system-admin/logout - System admin logout (protected)
+ */
+router.use("/auth/system-admin", systemAdminAuthRouter);
+
+/**
+ * TODO: Add more module routers as built
  * 
- * EXAMPLE (Phase 2):
- * import { router as systemAdminAuthRouter } from "@/modules/auth/systemAdmin/systemAdmin.auth.routes';
- * router.use("/auth/system-admin", systemAdminAuthRouter);
- *
  * EXAMPLE (Phase 3):
- * import { router as hotelAdminAuthRouter } from "@/modules/auth/hotelAdmin/hotelAdmin.auth.routes';
+ * import hotelAdminAuthRouter from "@/modules/auth/hotelAdmin/hotelAdmin.auth.routes';
  * router.use("/auth/hotel-admin", hotelAdminAuthRouter);
+ *
+ * EXAMPLE (Phase 4):
+ * import hotelSubAdminAuthRouter from "@/modules/auth/hotelSubAdmin/hotelSubAdmin.auth.routes';
+ * router.use("/auth/hotel-sub-admin", hotelSubAdminAuthRouter);
  */
 
 // Placeholder: Return a message that API is alive
