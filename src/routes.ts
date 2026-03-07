@@ -33,6 +33,7 @@ import endUserAuthRouter from "@/modules/auth/endUser/endUser.auth.routes";
 import systemAdminFeaturesRouter from "@/modules/admin/systemAdmin/systemAdmin.features.routes";
 import hotelsRouter from "@/modules/hotels/hotels.routes";
 import roomsRouter from "@/modules/rooms/rooms.routes";
+import bookingsRouter from "@/modules/bookings/bookings.routes";
 
 /**
  * Create main router
@@ -108,12 +109,20 @@ router.use("/hotels", hotelsRouter);
 router.use("/rooms", roomsRouter);
 
 /**
+ * Phase 9: Bookings Module
+ * Mounted at /api/bookings
+ * POST /api/bookings/create - Create new booking (protected)
+ * GET /api/bookings - List bookings with filters/pagination (public)
+ * GET /api/bookings/:id - Get booking details (public)
+ * GET /api/bookings/availability/:hotelId - Check room availability (public)
+ * PUT /api/bookings/:id/status - Update booking status (protected)
+ * POST /api/bookings/:id/cancel - Cancel booking (protected)
+ */
+router.use("/bookings", bookingsRouter);
+
+/**
  * TODO: Add more module routers as built
  * 
- * EXAMPLE (Phase 9):
- * import bookingsRouter from "@/modules/bookings/bookings.routes';
- * router.use("/bookings", bookingsRouter);
- *
  * EXAMPLE (Phase 10):
  * import profilesRouter from "@/modules/profiles/profiles.routes';
  * router.use("/profiles", profilesRouter);
