@@ -30,6 +30,8 @@ import systemAdminAuthRouter from "@/modules/auth/systemAdmin/systemAdmin.auth.r
 import hotelAdminAuthRouter from "@/modules/auth/hotelAdmin/hotelAdmin.auth.routes";
 import hotelSubAdminAuthRouter from "@/modules/auth/hotelSubAdmin/hotelSubAdmin.auth.routes";
 import endUserAuthRouter from "@/modules/auth/endUser/endUser.auth.routes";
+import systemAdminFeaturesRouter from "@/modules/admin/systemAdmin/systemAdmin.features.routes";
+import hotelsRouter from "@/modules/hotels/hotels.routes";
 
 /**
  * Create main router
@@ -70,15 +72,38 @@ router.use("/auth/hotel-sub-admin", hotelSubAdminAuthRouter);
 router.use("/auth/end-user", endUserAuthRouter);
 
 /**
+ * Phase 6: System Admin Features
+ * Mounted at /api/system-admin
+ * POST /api/system-admin/create - Create new system admin (protected)
+ * GET /api/system-admin - List all system admins (protected)
+ * GET /api/system-admin/:id - Get system admin details (protected)
+ * PUT /api/system-admin/:id/status - Update admin status (protected)
+ * DELETE /api/system-admin/:id - Soft delete admin (protected)
+ */
+router.use("/system-admin", systemAdminFeaturesRouter);
+
+/**
+ * Phase 7: Hotels Module
+ * Mounted at /api/hotels
+ * POST /api/hotels/create - Create new hotel (protected)
+ * GET /api/hotels - List hotels with filters/pagination (public)
+ * GET /api/hotels/:id - Get hotel details (public)
+ * PUT /api/hotels/:id - Update hotel information (protected)
+ * PUT /api/hotels/:id/approval - Update approval status (protected)
+ * DELETE /api/hotels/:id - Soft delete hotel (protected)
+ */
+router.use("/hotels", hotelsRouter);
+
+/**
  * TODO: Add more module routers as built
  * 
- * EXAMPLE (Phase 6):
- * import systemAdminFeaturesRouter from "@/modules/admin/systemAdmin/systemAdmin.features.routes';
- * router.use("/api/system-admin", systemAdminFeaturesRouter);
+ * EXAMPLE (Phase 8):
+ * import roomsRouter from "@/modules/rooms/rooms.routes';
+ * router.use("/rooms", roomsRouter);
  *
- * EXAMPLE (Phase 7):
- * import hotelsRouter from "@/modules/hotels/hotels.routes';
- * router.use("/api/hotels", hotelsRouter);
+ * EXAMPLE (Phase 9):
+ * import bookingsRouter from "@/modules/bookings/bookings.routes';
+ * router.use("/bookings", bookingsRouter);
  */
 
 // Placeholder: Return a message that API is alive
