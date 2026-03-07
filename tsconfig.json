@@ -5,6 +5,12 @@
     // "rootDir": "./src",
     // "outDir": "./dist",
 
+    // Path Aliases - allow @/config/env instead of ../../../config/env
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    },
+
     // Environment Settings
     // See also https://aka.ms/tsconfig/module
     "module": "ESNext",
