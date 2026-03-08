@@ -19,7 +19,10 @@
  * const users = await prisma.end_users.findMany();
  */
 
+import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
+import { PrismaMariaDb } from "@prisma/adapter-mariadb";
+import mysql from "mysql2/promise";
 
 /**
  * Declare global type for our prismaClient
@@ -32,23 +35,34 @@ declare global {
 }
 
 /**
+ * Create the MariaDB adapter with a connection pool
+ * This satisfies Prisma 7's requirement for an adapter
+ */
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error("DATABASE_URL environment variable is not set");
+}
+
+const pool = mysql.createPool(connectionString);
+const adapter = new PrismaMariaDb(pool as any);
+
+/**
  * Get or create the singleton PrismaClient
  *
- * FLOW:
- * 1. First time: globalThis.prismaClient is undefined
- *    → Create new PrismaClient()
- *    → Store in globalThis.prismaClient
- *    → Return it
- *
- * 2. Every other time: globalThis.prismaClient already exists
- *    → Skip creation
- *    → Return existing instance
- *
- * RESULT: Only one PrismaClient instance for entire app
+ * Follows the standard Prisma singleton pattern to avoid multiple instances
+ * which can cause memory leaks and connection pool exhaustion.
  */
-const prismaClient = globalThis.prismaClient || new PrismaClient();
+const prismaClient = globalThis.prismaClient || new PrismaClient({
+  adapter,
+  // Log slow queries
+  log: [
+    {
+      emit: "event",
+      level: "query",
+    },
+  ],
+});
 
-// In development, store the instance in globalThis to survive hot reloads
 if (process.env.NODE_ENV !== "production") {
   globalThis.prismaClient = prismaClient;
 }
@@ -58,7 +72,7 @@ if (process.env.NODE_ENV !== "production") {
  * Helps debug database operations
  */
 if (process.env.NODE_ENV === "development") {
-  prismaClient.$on("query" as never, (e: any) => {
+  (prismaClient as any).$on("query" as never, (e: any) => {
     console.log(`[PRISMA QUERY] ${e.query}`);
     console.log(`[PRISMA PARAMS] ${e.params}`);
     console.log(`[PRISMA DURATION] ${e.duration}ms\n`);
