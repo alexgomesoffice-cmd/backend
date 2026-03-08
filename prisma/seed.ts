@@ -5,6 +5,7 @@
  * PURPOSE: Seed database with initial demo data
  * 
  * Using raw SQL via mysql2/promise for reliable seeding
+ * (Prisma ORM adapter connection pooling has initialization issues)
  */
 
 import "dotenv/config";
@@ -36,7 +37,7 @@ async function main() {
        (1, 'HOTEL_ADMIN'),
        (2, 'HOTEL_SUB_ADMIN')`
     );
-    console.log("✅ Roles created:", rolesResult[0]);
+    console.log("✅ Roles created");
 
     // 2. Create System Admin
     console.log("👤 Creating system admin...");
@@ -45,7 +46,7 @@ async function main() {
        VALUES (?, ?, ?, 1, 0, NOW(), NOW())`,
       ["admin@myhotels.com", "System Administrator", "admin123"]
     );
-    console.log("✅ System admin created: admin@myhotels.com", adminResult[0]);
+    console.log("✅ System admin created: admin@myhotels.com");
 
     // 3. Create System Admin Details
     console.log("📝 Creating system admin details...");

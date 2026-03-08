@@ -22,7 +22,6 @@
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaMariaDb } from "@prisma/adapter-mariadb";
-import mysql from "mysql2/promise";
 
 /**
  * Declare global type for our prismaClient
@@ -35,16 +34,19 @@ declare global {
 }
 
 /**
- * Create the MariaDB adapter with a connection pool
+ * Create the MariaDB adapter with a connection string
  * This satisfies Prisma 7's requirement for an adapter
+ * 
+ * NOTE: We use a simpler adapter initialization that directly
+ * passes the connection string rather than managing our own pool.
+ * This lets the adapter handle connection pooling internally.
  */
 const connectionString = process.env.DATABASE_URL;
 if (!connectionString) {
   throw new Error("DATABASE_URL environment variable is not set");
 }
 
-const pool = mysql.createPool(connectionString);
-const adapter = new PrismaMariaDb(pool as any);
+const adapter = new PrismaMariaDb(connectionString);
 
 /**
  * Get or create the singleton PrismaClient
