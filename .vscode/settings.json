@@ -1,0 +1,7 @@
+{
+  "prisma.lint.enabled": false,
+  "[prisma]": {
+    "editor.defaultFormatter": "Prisma.prisma",
+    "editor.formatOnSave": true
+  }
+}

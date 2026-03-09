@@ -21,7 +21,6 @@
 
 import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
-import { PrismaMariaDb } from "@prisma/adapter-mariadb";
 
 /**
  * Declare global type for our prismaClient
@@ -34,28 +33,12 @@ declare global {
 }
 
 /**
- * Create the MariaDB adapter with a connection string
- * This satisfies Prisma 7's requirement for an adapter
- * 
- * NOTE: We use a simpler adapter initialization that directly
- * passes the connection string rather than managing our own pool.
- * This lets the adapter handle connection pooling internally.
- */
-const connectionString = process.env.DATABASE_URL;
-if (!connectionString) {
-  throw new Error("DATABASE_URL environment variable is not set");
-}
-
-const adapter = new PrismaMariaDb(connectionString);
-
-/**
  * Get or create the singleton PrismaClient
  *
  * Follows the standard Prisma singleton pattern to avoid multiple instances
  * which can cause memory leaks and connection pool exhaustion.
  */
 const prismaClient = globalThis.prismaClient || new PrismaClient({
-  adapter,
   // Log slow queries
   log: [
     {

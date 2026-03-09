@@ -78,6 +78,81 @@ export async function createHotel(hotelData: any, createdBy: number) {
 }
 
 /**
+ * Creates hotel with amenities and images in a single transaction
+ *
+ * WORKFLOW:
+ * 1. Create hotel record
+ * 2. Insert amenity records in hotel_details (one row per selected amenity)
+ * 3. Insert image records in hotel_details (one row per image URL)
+ * 4. Return created hotel with all details
+ *
+ * @param {object} hotelData - Hotel information + amenities array + images array
+ * @param {number} createdBy - System admin ID
+ * @returns {{hotel_id, name, amenities, images}} Created hotel with details
+ * @throws {Error} DATABASE_ERROR
+ */
+export async function createHotelWithDetails(hotelData: any, createdBy: number) {
+  // Use transaction to ensure all-or-nothing
+  const result = await prisma.$transaction(async (tx) => {
+    // Step 1: Create hotel
+    const hotel = await tx.hotels.create({
+      data: {
+        name: hotelData.name,
+        email: hotelData.email || null,
+        address: hotelData.address || null,
+        city: hotelData.city || null,
+        hotel_type: hotelData.hotel_type || null,
+        owner_name: hotelData.owner_name || null,
+        description: hotelData.description || null,
+        star_rating: hotelData.star_rating ? parseFloat(hotelData.star_rating) : null,
+        emergency_contact1: hotelData.emergency_contact1 || null,
+        emergency_contact2: hotelData.emergency_contact2 || null,
+        reception_no1: hotelData.reception_no1 || null,
+        reception_no2: hotelData.reception_no2 || null,
+        zip_code: hotelData.zip_code || null,
+        created_by: createdBy,
+        approval_status: "DRAFT",
+      },
+    });
+
+    // Step 2: Insert amenities if provided
+    if (hotelData.amenities && Array.isArray(hotelData.amenities) && hotelData.amenities.length > 0) {
+      await tx.hotel_details.createMany({
+        data: hotelData.amenities.map((amenity: string) => ({
+          hotel_id: hotel.hotel_id,
+          amenity_name: amenity,
+          hotel_image_url: null,
+        })),
+      });
+    }
+
+    // Step 3: Insert images if provided (max 8)
+    if (hotelData.images && Array.isArray(hotelData.images) && hotelData.images.length > 0) {
+      const imagesToInsert = hotelData.images.slice(0, 8); // Limit to 8 images
+      await tx.hotel_details.createMany({
+        data: imagesToInsert.map((imageUrl: string) => ({
+          hotel_id: hotel.hotel_id,
+          hotel_image_url: imageUrl,
+          amenity_name: null,
+        })),
+      });
+    }
+
+    // Step 4: Fetch and return complete hotel with details
+    const completeHotel = await tx.hotels.findUnique({
+      where: { hotel_id: hotel.hotel_id },
+      include: {
+        hotel_details: true,
+      },
+    });
+
+    return completeHotel;
+  });
+
+  return result;
+}
+
+/**
  * Retrieves a hotel by ID
  *
  * WORKFLOW:

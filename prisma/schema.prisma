@@ -3,6 +3,7 @@
 // Database: MySQL
 // Generator: prisma-client-js
 // All table names are plural, snake_case
+// Using Prisma 6.19.2 — url in datasource is correct for this version
 // ============================================================
 
 generator client {
@@ -11,6 +12,7 @@ generator client {
 
 datasource db {
   provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 // ─────────────────────────────────────────────────────────────

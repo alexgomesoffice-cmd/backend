@@ -25,6 +25,11 @@ import {
   updateApprovalStatusController,
   deleteHotelController,
 } from "./hotels.controller";
+import {
+  createHotelAdminController,
+  getHotelAdminController,
+  updateHotelAdminDetailsController,
+} from "./hotelAdmin.controller";
 
 const router = Router();
 
@@ -81,5 +86,37 @@ router.put("/:id/approval", authenticate, updateApprovalStatusController);
  * @returns {message, hotel_id}
  */
 router.delete("/:id", authenticate, deleteHotelController);
+
+/**
+ * Hotel Admin Routes
+ * ─────────────────────────────────────────────
+ */
+
+/**
+ * POST /admin/create
+ * Create a new hotel admin account
+ * @requires Authentication (system admin)
+ * @body {hotel_id, name, email, password, phone?, nid_no?, manager_name?, manager_phone?}
+ * @returns {hotel_admin_id, name, email, hotel_id, hotel_admin_details}
+ */
+router.post("/admin/create", authenticate, createHotelAdminController);
+
+/**
+ * GET /admin/:id
+ * Get hotel admin details by ID
+ * @param {id} Hotel admin ID
+ * @returns {hotel_admin_id, name, email, hotel_id, hotel_admin_details}
+ */
+router.get("/admin/:id", getHotelAdminController);
+
+/**
+ * PUT /admin/:id
+ * Update hotel admin details
+ * @requires Authentication
+ * @param {id} Hotel admin ID
+ * @body {phone?, nid_no?, manager_name?, manager_phone?, address?, image_url?}
+ * @returns {updated details}
+ */
+router.put("/admin/:id", authenticate, updateHotelAdminDetailsController);
 
 export default router;

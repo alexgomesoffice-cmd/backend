@@ -19,6 +19,7 @@
 import type { Request, Response, NextFunction } from "express";
 import {
   createHotel,
+  createHotelWithDetails,
   getHotel,
   listHotels,
   updateHotel,
@@ -81,8 +82,10 @@ export async function createHotelController(
       return;
     }
 
-    // Call service
-    const hotel = await createHotel(hotelData, req.actor.id);
+    // Call service with amenities and images
+    const hotel = hotelData.amenities || hotelData.images 
+      ? await createHotelWithDetails(hotelData, req.actor.id)
+      : await createHotel(hotelData, req.actor.id);
 
     // Return success
     res.status(201).json({
