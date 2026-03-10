@@ -313,6 +313,22 @@ CREATE TABLE `room_booking_trackers` (
     PRIMARY KEY (`tracker_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
+-- CreateTable
+CREATE TABLE `blacklisted_tokens` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `token_hash` VARCHAR(500) NOT NULL,
+    `actor_id` INTEGER NOT NULL,
+    `actor_type` ENUM('SYSTEM_ADMIN', 'HOTEL_ADMIN', 'HOTEL_SUB_ADMIN', 'END_USER') NOT NULL,
+    `expires_at` DATETIME(3) NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    UNIQUE INDEX `blacklisted_tokens_token_hash_key`(`token_hash`),
+    INDEX `blacklisted_tokens_token_hash_idx`(`token_hash`),
+    INDEX `blacklisted_tokens_expires_at_idx`(`expires_at`),
+    INDEX `blacklisted_tokens_actor_id_actor_type_idx`(`actor_id`, `actor_type`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
 -- AddForeignKey
 ALTER TABLE `system_admins` ADD CONSTRAINT `system_admins_created_by_fkey` FOREIGN KEY (`created_by`) REFERENCES `system_admins`(`system_admin_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 

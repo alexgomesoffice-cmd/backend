@@ -3,7 +3,7 @@
 // Database: MySQL
 // Generator: prisma-client-js
 // All table names are plural, snake_case
-// Using Prisma 6.19.2 — url in datasource is correct for this version
+// Using Prisma 6.19.2
 // ============================================================
 
 generator client {
@@ -152,7 +152,8 @@ model end_user_details {
 
 // ─────────────────────────────────────────────────────────────
 // HOTELS
-// Created by system_admin using info from hotel owner.
+// Core identity fields only.
+// Extended info (description, reception, ratings) → hotel_details
 // Lifecycle: DRAFT → PENDING_APPROVAL → PUBLISHED / REJECTED
 // Only PUBLISHED hotels visible to end_users and guests.
 // ─────────────────────────────────────────────────────────────
@@ -165,13 +166,8 @@ model hotels {
   hotel_type         String?        @db.VarChar(100)
   emergency_contact1 String?        @db.VarChar(100)
   emergency_contact2 String?        @db.VarChar(100)
-  reception_no1      String?        @db.VarChar(32)
-  reception_no2      String?        @db.VarChar(32)
   owner_name         String?        @db.VarChar(150)
-  description        String?        @db.Text
   zip_code           String?        @db.VarChar(20)
-  star_rating        Decimal?       @db.Decimal(2, 1)
-  guest_rating       Decimal        @default(0.00) @db.Decimal(3, 2)
   created_by         Int
   approval_status    ApprovalStatus @default(DRAFT)
   published_at       DateTime?
@@ -184,14 +180,20 @@ model hotels {
   creator  system_admins  @relation("HotelCreatedBy", fields: [created_by], references: [system_admin_id])
   approver system_admins? @relation("HotelApprovedBy", fields: [approved_by], references: [system_admin_id])
 
+  // Extended details (one-to-one)
+  hotel_details hotel_details?
+
   // Hotel admin — one admin per hotel
   hotel_admin hotel_admins?
 
   // Hotel sub admins scoped to this hotel
   hotel_sub_admins hotel_sub_admins[]
 
-  // Hotel details (images + amenities)
-  hotel_details hotel_details[]
+  // Hotel images
+  hotel_images hotel_images[]
+
+  // Hotel-wide amenities (selected from master amenities list)
+  hotel_amenities hotel_amenities[]
 
   // Room types at this hotel
   hotel_rooms hotel_rooms[]
@@ -205,6 +207,28 @@ model hotels {
 }
 
 // ─────────────────────────────────────────────────────────────
+// HOTEL DETAILS
+// One-to-one with hotels.
+// Stores extended info — description, reception numbers, ratings.
+// Created automatically when hotel is created (empty row).
+// Only loaded when needed — not joined on list/search queries.
+// ─────────────────────────────────────────────────────────────
+model hotel_details {
+  hotel_details_id Int      @id @default(autoincrement())
+  hotel_id         Int      @unique
+  description      String?  @db.Text
+  reception_no1    String?  @db.VarChar(32)
+  reception_no2    String?  @db.VarChar(32)
+  star_rating      Decimal? @db.Decimal(2, 1)
+  guest_rating     Decimal  @default(0.00) @db.Decimal(3, 2)
+  updated_at       DateTime @updatedAt
+
+  hotel hotels @relation(fields: [hotel_id], references: [hotel_id], onDelete: Cascade)
+
+  @@map("hotel_details")
+}
+
+// ─────────────────────────────────────────────────────────────
 // HOTEL ADMINS
 // Created by system_admin. hotel_id directly on this table
 // (not in details) — required by auth middleware for scope.
@@ -214,8 +238,8 @@ model hotels {
 model hotel_admins {
   hotel_admin_id         Int       @id @default(autoincrement())
   role_id                Int       @default(1)
-  hotel_id               Int       @unique // one admin per hotel
-  created_by             Int?      // system_admin_id — soft reference
+  hotel_id               Int       @unique
+  created_by             Int?
   name                   String    @db.VarChar(150)
   email                  String    @unique @db.VarChar(255)
   password               String    @db.VarChar(255)
@@ -270,15 +294,14 @@ model hotel_admin_details {
 
 // ─────────────────────────────────────────────────────────────
 // HOTEL SUB ADMINS
-// Created by hotel_admin. Scoped to one hotel via hotel_id
-// on this table (auth scope — not in details).
+// Created by hotel_admin. Scoped to one hotel via hotel_id.
 // Can manage bookings ONLY. Cannot create/edit/delete rooms.
 // ─────────────────────────────────────────────────────────────
 model hotel_sub_admins {
   hotel_sub_admin_id     Int       @id @default(autoincrement())
   role_id                Int       @default(2)
-  hotel_id               Int       // auth scope — stays on this table
-  created_by             Int?      // hotel_admin_id — soft reference
+  hotel_id               Int
+  created_by             Int?
   name                   String    @db.VarChar(150)
   email                  String    @unique @db.VarChar(255)
   password               String    @db.VarChar(255)
@@ -323,22 +346,66 @@ model hotel_sub_admin_details {
 }
 
 // ─────────────────────────────────────────────────────────────
-// HOTEL DETAILS
-// Multiple rows per hotel — each row is one image OR one amenity.
-// hotel_image_url is NULL when the row is an amenity entry.
-// amenity_name is NULL when the row is an image entry.
+// AMENITIES
+// Master list managed by system admin.
+// context controls which form the amenity appears in:
+//   HOTEL → hotel amenities form only
+//   ROOM  → room creation form only
+//   BOTH  → appears in both forms
+// is_active = false hides from forms without deleting —
+// existing hotel/room references stay intact.
 // ─────────────────────────────────────────────────────────────
-model hotel_details {
-  hotel_details_id Int      @id @default(autoincrement())
-  hotel_id         Int
-  hotel_image_url  String?  @db.VarChar(500) // NULL if amenity row
-  amenity_name     String?  @db.VarChar(150) // NULL if image row
-  updated_at       DateTime @updatedAt
+model amenities {
+  id         Int            @id @default(autoincrement())
+  name       String         @unique @db.VarChar(150)
+  icon       String?        @db.VarChar(100)
+  context    AmenityContext @default(BOTH)
+  is_active  Boolean        @default(true)
+  created_at DateTime       @default(now())
+
+  hotel_amenities hotel_amenities[]
+  room_amenities  room_amenities[]
+
+  @@map("amenities")
+}
+
+// ─────────────────────────────────────────────────────────────
+// HOTEL IMAGES
+// Images belonging to a hotel.
+// is_cover = true marks the main display image shown on cards.
+// One cover per hotel recommended — enforced at app layer.
+// ─────────────────────────────────────────────────────────────
+model hotel_images {
+  id         Int      @id @default(autoincrement())
+  hotel_id   Int
+  image_url  String   @db.VarChar(500)
+  is_cover   Boolean  @default(false)
+  created_at DateTime @default(now())
 
   hotel hotels @relation(fields: [hotel_id], references: [hotel_id], onDelete: Cascade)
 
   @@index([hotel_id])
-  @@map("hotel_details")
+  @@map("hotel_images")
+}
+
+// ─────────────────────────────────────────────────────────────
+// HOTEL AMENITIES
+// Junction table — which amenities a hotel has.
+// Hotel admin selects from master amenities list (context: HOTEL or BOTH).
+// UNIQUE on (hotel_id, amenity_id) prevents duplicates.
+// ─────────────────────────────────────────────────────────────
+model hotel_amenities {
+  id         Int      @id @default(autoincrement())
+  hotel_id   Int
+  amenity_id Int
+  created_at DateTime @default(now())
+
+  hotel   hotels    @relation(fields: [hotel_id],   references: [hotel_id], onDelete: Cascade)
+  amenity amenities @relation(fields: [amenity_id], references: [id],       onDelete: Cascade)
+
+  @@unique([hotel_id, amenity_id])
+  @@index([hotel_id])
+  @@map("hotel_amenities")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -364,6 +431,12 @@ model hotel_rooms {
   // Physical rooms of this type
   hotel_room_details hotel_room_details[]
 
+  // Room images
+  hotel_room_images hotel_room_images[]
+
+  // Room amenities (selected from master amenities list)
+  room_amenities room_amenities[]
+
   // Booking line items referencing this type
   booking_rooms booking_rooms[]
 
@@ -372,6 +445,45 @@ model hotel_rooms {
 
   @@index([hotel_id])
   @@map("hotel_rooms")
+}
+
+// ─────────────────────────────────────────────────────────────
+// HOTEL ROOM IMAGES
+// Images belonging to a room type.
+// is_cover = true marks the main display image for that type.
+// One cover per room type recommended — enforced at app layer.
+// ─────────────────────────────────────────────────────────────
+model hotel_room_images {
+  id            Int      @id @default(autoincrement())
+  hotel_room_id Int
+  image_url     String   @db.VarChar(500)
+  is_cover      Boolean  @default(false)
+  created_at    DateTime @default(now())
+
+  hotel_room hotel_rooms @relation(fields: [hotel_room_id], references: [hotel_room_id], onDelete: Cascade)
+
+  @@index([hotel_room_id])
+  @@map("hotel_room_images")
+}
+
+// ─────────────────────────────────────────────────────────────
+// ROOM AMENITIES
+// Junction table — which amenities a room type has.
+// Hotel admin selects from master amenities list (context: ROOM or BOTH).
+// UNIQUE on (hotel_room_id, amenity_id) prevents duplicates.
+// ─────────────────────────────────────────────────────────────
+model room_amenities {
+  id            Int      @id @default(autoincrement())
+  hotel_room_id Int
+  amenity_id    Int
+  created_at    DateTime @default(now())
+
+  hotel_room hotel_rooms @relation(fields: [hotel_room_id], references: [hotel_room_id], onDelete: Cascade)
+  amenity    amenities   @relation(fields: [amenity_id],    references: [id],             onDelete: Cascade)
+
+  @@unique([hotel_room_id, amenity_id])
+  @@index([hotel_room_id])
+  @@map("room_amenities")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -411,53 +523,40 @@ model hotel_room_details {
 // TWO PRIMARY STATES:
 //   RESERVED — unpaid, 30min timer. reserved_until = now+30min.
 //   BOOKED   — payment confirmed. locked_price set.
-//
-// Other states:
-//   EXPIRED    — 30min passed, cron updated. Rooms freed.
-//   CANCELLED  — cancelled by any actor. Rooms freed.
-//   CHECKED_IN / CHECKED_OUT / NO_SHOW — physical stay states.
-//
 // SPAM RULE: max 5 active (RESERVED or BOOKED) per user.
-//            Enforced at application layer before INSERT.
-//
 // NO deleted_at — bookings are never deleted.
-// Cancellation = status → CANCELLED + tracker → CANCELLED.
 // ─────────────────────────────────────────────────────────────
 model bookings {
   booking_id        Int           @id @default(autoincrement())
-  booking_reference String        @unique @db.VarChar(64) // generated by backend e.g. BK-20250315-A3F9K2
+  booking_reference String        @unique @db.VarChar(64)
   end_user_id       Int
   hotel_id          Int
   check_in          DateTime      @db.Date
   check_out         DateTime      @db.Date
   special_request   String?       @db.Text
   status            BookingStatus @default(RESERVED)
-  reserved_until    DateTime?     // NOW + 30min at creation. NULL after payment.
+  reserved_until    DateTime?
   total_price       Decimal       @db.Decimal(12, 2)
-  locked_price      Decimal?      @db.Decimal(12, 2) // set when BOOKED. Never changes.
+  locked_price      Decimal?      @db.Decimal(12, 2)
   created_at        DateTime      @default(now())
   updated_at        DateTime      @updatedAt
 
   end_user end_users @relation(fields: [end_user_id], references: [end_user_id], onDelete: Cascade)
-  hotel    hotels    @relation(fields: [hotel_id], references: [hotel_id], onDelete: Restrict)
+  hotel    hotels    @relation(fields: [hotel_id],    references: [hotel_id],    onDelete: Restrict)
 
-  // Line items — one per room type selected
-  booking_rooms booking_rooms[]
-
-  // Physical room assignments
+  booking_rooms         booking_rooms[]
   room_booking_trackers room_booking_trackers[]
 
   @@index([booking_reference])
   @@index([hotel_id, check_in, check_out])
   @@index([end_user_id, status])
-  @@index([reserved_until]) // cron scans this for expired rows
+  @@index([reserved_until])
   @@map("bookings")
 }
 
 // ─────────────────────────────────────────────────────────────
 // BOOKING ROOMS
 // Line items for a booking. One row per room TYPE selected.
-// e.g. 2x Deluxe Double + 1x Suite = 3 rows.
 // price_per_night locked from hotel_rooms.base_price at booking time.
 // subtotal = price_per_night × quantity × nights
 // ─────────────────────────────────────────────────────────────
@@ -465,13 +564,13 @@ model booking_rooms {
   booking_room_id Int      @id @default(autoincrement())
   booking_id      Int
   hotel_room_id   Int
-  quantity        Int      @default(1) // number of rooms of this type
-  price_per_night Decimal  @db.Decimal(12, 2) // locked at booking time
-  nights          Int      // check_out - check_in, stored for convenience
-  subtotal        Decimal  @db.Decimal(12, 2) // price_per_night × quantity × nights
+  quantity        Int      @default(1)
+  price_per_night Decimal  @db.Decimal(12, 2)
+  nights          Int
+  subtotal        Decimal  @db.Decimal(12, 2)
   created_at      DateTime @default(now())
 
-  booking    bookings    @relation(fields: [booking_id], references: [booking_id], onDelete: Cascade)
+  booking    bookings    @relation(fields: [booking_id],    references: [booking_id],    onDelete: Cascade)
   hotel_room hotel_rooms @relation(fields: [hotel_room_id], references: [hotel_room_id], onDelete: Restrict)
 
   @@index([booking_id])
@@ -482,35 +581,24 @@ model booking_rooms {
 // ─────────────────────────────────────────────────────────────
 // ROOM BOOKING TRACKERS
 // Availability engine. One row per PHYSICAL room per booking.
-// RESERVED → room held, payment pending.
-// BOOKED   → payment confirmed.
-// EXPIRED  → 30min passed, cron released room.
-// CANCELLED → booking cancelled, room freed.
-//
-// Availability query counts hotel_room_details rows for a type
-// MINUS tracker rows with status IN (RESERVED, BOOKED)
-// and overlapping dates.
-//
 // UNIQUE on (hotel_room_details_id, check_in, check_out)
 // prevents double-booking the same physical room.
-//
-// hotel_room_id is denormalised here to speed up the
-// availability query — avoids a join to hotel_room_details.
+// hotel_room_id denormalised to avoid JOIN in availability query.
 // ─────────────────────────────────────────────────────────────
 model room_booking_trackers {
   tracker_id            Int           @id @default(autoincrement())
   booking_id            Int
   hotel_room_details_id Int
-  hotel_room_id         Int           // denormalised for query speed
+  hotel_room_id         Int
   check_in              DateTime      @db.Date
   check_out             DateTime      @db.Date
   status                TrackerStatus @default(RESERVED)
   created_at            DateTime      @default(now())
   updated_at            DateTime      @updatedAt
 
-  booking           bookings           @relation(fields: [booking_id], references: [booking_id], onDelete: Cascade)
+  booking           bookings           @relation(fields: [booking_id],            references: [booking_id],            onDelete: Cascade)
   hotel_room_detail hotel_room_details @relation(fields: [hotel_room_details_id], references: [hotel_room_details_id], onDelete: Restrict)
-  hotel_room        hotel_rooms        @relation(fields: [hotel_room_id], references: [hotel_room_id], onDelete: Restrict)
+  hotel_room        hotel_rooms        @relation(fields: [hotel_room_id],         references: [hotel_room_id],         onDelete: Restrict)
 
   @@unique([hotel_room_details_id, check_in, check_out])
   @@index([hotel_room_id, check_in, check_out])
@@ -525,21 +613,15 @@ model room_booking_trackers {
 // ─────────────────────────────────────────────────────────────
 // BLACKLISTED TOKENS
 // Stateless JWT with selective invalidation.
-// A token is only written here when it needs to be killed:
-//   - User logs out
-//   - Admin blocks a user (all their active tokens inserted)
-// Auth middleware checks: if token_hash exists here → reject.
-// Cron deletes rows where expires_at < NOW() to keep table small.
-// Normal valid requests never touch this table.
-// actor_type tells you which table actor_id belongs to —
-// used for bulk-invalidating all tokens for one user.
+// Written only on logout or when admin blocks a user.
+// Cron deletes rows where expires_at < NOW().
 // ─────────────────────────────────────────────────────────────
 model blacklisted_tokens {
   id         Int       @id @default(autoincrement())
   token_hash String    @unique @db.VarChar(500)
   actor_id   Int
   actor_type ActorType
-  expires_at DateTime  // copied from JWT exp — cron deletes after this
+  expires_at DateTime
   created_at DateTime  @default(now())
 
   @@index([token_hash])
@@ -557,6 +639,12 @@ enum ActorType {
   HOTEL_ADMIN
   HOTEL_SUB_ADMIN
   END_USER
+}
+
+enum AmenityContext {
+  HOTEL
+  ROOM
+  BOTH
 }
 
 enum ApprovalStatus {
