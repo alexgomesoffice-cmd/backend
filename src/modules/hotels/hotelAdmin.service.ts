@@ -72,13 +72,21 @@ export async function createHotelAdmin(
 
   // Step 3: Create hotel admin in transaction (atomic operation)
   const result = await prisma.$transaction(async (tx) => {
+    // hash the password first
+    let hashedPassword: string;
+    try {
+      hashedPassword = await hashPassword(adminData.password);
+    } catch (err) {
+      throw new Error("PASSWORD_HASH_ERROR");
+    }
+
     // Create hotel_admin record
     const hotelAdmin = await tx.hotel_admins.create({
       data: {
         hotel_id: hotelId,
         name: adminData.name,
         email: adminData.email,
-        password: adminData.password, // Store as plaintext for now
+        password: hashedPassword,
         created_by: createdBy || null,
         role_id: 1, // Default role for hotel admin
       },

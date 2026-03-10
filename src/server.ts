@@ -36,12 +36,6 @@ const server = app.listen(env.PORT, () => {
     api_root: `http://localhost:${env.PORT}/api`,
     health_check: `http://localhost:${env.PORT}/health`,
   });
-
-  logger.info("📝 Available endpoints:", {
-    message: "See each phase's routes for specific endpoints",
-    phase_1: "Foundation complete - Config, Types, Utils, Middleware",
-    phase_2: "Next: System Admin Auth",
-  });
 });
 
 /**

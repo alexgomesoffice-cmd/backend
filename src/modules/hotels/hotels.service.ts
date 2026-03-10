@@ -22,6 +22,7 @@
 
 import { prisma } from "@/config/prisma";
 import { Prisma } from "@prisma/client";
+import { hashPassword } from "@/utils/password";
 
 /**
  * Creates a new hotel entry
@@ -46,6 +47,7 @@ import { Prisma } from "@prisma/client";
  * }, 1);
  */
 export async function createHotel(hotelData: any, createdBy: number) {
+  // create minimal hotel row only
   const hotel = await prisma.hotels.create({
     data: {
       name: hotelData.name,
@@ -53,13 +55,9 @@ export async function createHotel(hotelData: any, createdBy: number) {
       address: hotelData.address || null,
       city: hotelData.city || null,
       hotel_type: hotelData.hotel_type || null,
-      owner_name: hotelData.owner_name || null,
-      description: hotelData.description || null,
-      star_rating: hotelData.star_rating ? parseFloat(hotelData.star_rating) : null,
       emergency_contact1: hotelData.emergency_contact1 || null,
       emergency_contact2: hotelData.emergency_contact2 || null,
-      reception_no1: hotelData.reception_no1 || null,
-      reception_no2: hotelData.reception_no2 || null,
+      owner_name: hotelData.owner_name || null,
       zip_code: hotelData.zip_code || null,
       created_by: createdBy,
       approval_status: "DRAFT",
@@ -82,67 +80,115 @@ export async function createHotel(hotelData: any, createdBy: number) {
  *
  * WORKFLOW:
  * 1. Create hotel record
- * 2. Insert amenity records in hotel_details (one row per selected amenity)
- * 3. Insert image records in hotel_details (one row per image URL)
- * 4. Return created hotel with all details
+ * 2. Insert details row if provided
+ * 3. Insert amenity records in hotel_amenities (one row per selected amenity)
+ * 4. Insert image records in hotel_images (one row per image URL)
+ * 5. Optionally create a hotel admin account and details when `admin` field is provided
+ * 6. Return created hotel with all related records
  *
- * @param {object} hotelData - Hotel information + amenities array + images array
+ * @param {object} hotelData - Hotel information plus optional details, amenities, images, and admin
  * @param {number} createdBy - System admin ID
- * @returns {{hotel_id, name, amenities, images}} Created hotel with details
- * @throws {Error} DATABASE_ERROR
+ * @returns {{hotel_id, name, amenities, images, hotel_admins?}} Created hotel with details (and admin)
+ * @throws {Error} DATABASE_ERROR | EMAIL_ALREADY_EXISTS
  */
 export async function createHotelWithDetails(hotelData: any, createdBy: number) {
-  // Use transaction to ensure all-or-nothing
+  // use transaction for atomic work
   const result = await prisma.$transaction(async (tx) => {
-    // Step 1: Create hotel
+    const { details, amenities, images, admin, ...basic } = hotelData;
+
+    // 1. create base hotel
+    // only include columns that actually exist on the hotels table
     const hotel = await tx.hotels.create({
       data: {
-        name: hotelData.name,
-        email: hotelData.email || null,
-        address: hotelData.address || null,
-        city: hotelData.city || null,
-        hotel_type: hotelData.hotel_type || null,
-        owner_name: hotelData.owner_name || null,
-        description: hotelData.description || null,
-        star_rating: hotelData.star_rating ? parseFloat(hotelData.star_rating) : null,
-        emergency_contact1: hotelData.emergency_contact1 || null,
-        emergency_contact2: hotelData.emergency_contact2 || null,
-        reception_no1: hotelData.reception_no1 || null,
-        reception_no2: hotelData.reception_no2 || null,
-        zip_code: hotelData.zip_code || null,
+        name: basic.name,
+        email: basic.email || null,
+        address: basic.address || null,
+        city: basic.city || null,
+        hotel_type: basic.hotel_type || null,
+        emergency_contact1: basic.emergency_contact1 || null,
+        emergency_contact2: basic.emergency_contact2 || null,
+        owner_name: basic.owner_name || null,
+        zip_code: basic.zip_code || null,
         created_by: createdBy,
         approval_status: "DRAFT",
       },
     });
 
-    // Step 2: Insert amenities if provided
-    if (hotelData.amenities && Array.isArray(hotelData.amenities) && hotelData.amenities.length > 0) {
-      await tx.hotel_details.createMany({
-        data: hotelData.amenities.map((amenity: string) => ({
+    // 2. create details row if any
+    if (details && Object.keys(details).length > 0) {
+      await tx.hotel_details.create({
+        data: {
           hotel_id: hotel.hotel_id,
-          amenity_name: amenity,
-          hotel_image_url: null,
-        })),
+          description: details.description || null,
+          reception_no1: details.reception_no1 || null,
+          reception_no2: details.reception_no2 || null,
+          star_rating: details.star_rating ? parseFloat(details.star_rating) : null,
+          guest_rating: details.guest_rating ?? 0,
+        },
       });
     }
 
-    // Step 3: Insert images if provided (max 8)
-    if (hotelData.images && Array.isArray(hotelData.images) && hotelData.images.length > 0) {
-      const imagesToInsert = hotelData.images.slice(0, 8); // Limit to 8 images
-      await tx.hotel_details.createMany({
-        data: imagesToInsert.map((imageUrl: string) => ({
+    // 3. hotel amenities
+    if (amenities && Array.isArray(amenities) && amenities.length) {
+      const amenityRows = [];
+      for (const name of amenities) {
+        const amen = await tx.amenities.findUnique({ where: { name } });
+        if (amen) amenityRows.push({ hotel_id: hotel.hotel_id, amenity_id: amen.id });
+      }
+      if (amenityRows.length) {
+        await tx.hotel_amenities.createMany({ data: amenityRows });
+      }
+    }
+
+    // 4. hotel images
+    if (images && Array.isArray(images) && images.length) {
+      const urls = images.slice(0, 8);
+      const imgRows = urls.map((url: string) => ({ hotel_id: hotel.hotel_id, image_url: url }));
+      await tx.hotel_images.createMany({ data: imgRows });
+    }
+
+    // 5. optional hotel admin creation
+    let hotelAdmin = null;
+    if (admin) {
+      // ensure unique email
+      const existing = await tx.hotel_admins.findUnique({ where: { email: admin.email } });
+      if (existing) {
+        throw new Error("EMAIL_ALREADY_EXISTS");
+      }
+      const hashed = await hashPassword(admin.password);
+      hotelAdmin = await tx.hotel_admins.create({
+        data: {
           hotel_id: hotel.hotel_id,
-          hotel_image_url: imageUrl,
-          amenity_name: null,
-        })),
+          name: admin.name,
+          email: admin.email,
+          password: hashed,
+          created_by: createdBy,
+          role_id: 1,
+        },
+      });
+      await tx.hotel_admin_details.create({
+        data: {
+          hotel_admin_id: hotelAdmin.hotel_admin_id,
+          phone: admin.phone || null,
+          nid_no: admin.nid_no || null,
+          manager_name: admin.manager_name || null,
+          manager_phone: admin.manager_phone || null,
+          address: admin.address || null,
+          passport: admin.passport || null,
+          dob: admin.dob ? new Date(admin.dob) : null,
+          image_url: admin.image_url || null,
+        },
       });
     }
 
-    // Step 4: Fetch and return complete hotel with details
+    // 6. return hotel with relations (and maybe admin)
     const completeHotel = await tx.hotels.findUnique({
       where: { hotel_id: hotel.hotel_id },
       include: {
         hotel_details: true,
+        hotel_amenities: { include: { amenity: true } },
+        hotel_images: true,
+        hotel_admin: { include: { hotel_admin_details: true } },
       },
     });
 
@@ -151,7 +197,6 @@ export async function createHotelWithDetails(hotelData: any, createdBy: number) 
 
   return result;
 }
-
 /**
  * Retrieves a hotel by ID
  *
@@ -170,21 +215,10 @@ export async function createHotelWithDetails(hotelData: any, createdBy: number) 
 export async function getHotel(hotelId: number) {
   const hotel = await prisma.hotels.findUnique({
     where: { hotel_id: hotelId },
-    select: {
-      hotel_id: true,
-      name: true,
-      email: true,
-      address: true,
-      city: true,
-      hotel_type: true,
-      owner_name: true,
-      description: true,
-      star_rating: true,
-      guest_rating: true,
-      approval_status: true,
-      published_at: true,
-      created_at: true,
-      updated_at: true,
+    include: {
+      hotel_details: true,
+      hotel_amenities: { include: { amenity: true } },
+      hotel_images: true,
     },
   });
 
@@ -236,7 +270,7 @@ export async function listHotels(
     where.hotel_type = filters.hotel_type;
   }
 
-  // Query hotels
+  // Query hotels with minimal fields plus relations if needed
   const [hotels, total] = await Promise.all([
     prisma.hotels.findMany({
       where,
@@ -248,10 +282,10 @@ export async function listHotels(
         email: true,
         city: true,
         hotel_type: true,
-        star_rating: true,
-        guest_rating: true,
         approval_status: true,
         created_at: true,
+        // optionally expose some detail
+        hotel_details: { select: { star_rating: true, description: true } },
       },
       orderBy: { created_at: "desc" },
     }),
@@ -286,48 +320,79 @@ export async function listHotels(
  * });
  */
 export async function updateHotel(hotelId: number, updates: any) {
-  // Check if hotel exists
-  const existingHotel = await prisma.hotels.findUnique({
-    where: { hotel_id: hotelId },
+  // Ensure hotel exists
+  const existingHotel = await prisma.hotels.findUnique({ where: { hotel_id: hotelId } });
+  if (!existingHotel) throw new Error("HOTEL_NOT_FOUND");
+
+  // perform all related updates in a transaction
+  const hotel = await prisma.$transaction(async (tx) => {
+    // 1. update base hotel fields
+    const baseData: any = {};
+    if (updates.name !== undefined) baseData.name = updates.name;
+    if (updates.email !== undefined) baseData.email = updates.email;
+    if (updates.address !== undefined) baseData.address = updates.address;
+    if (updates.city !== undefined) baseData.city = updates.city;
+    if (updates.hotel_type !== undefined) baseData.hotel_type = updates.hotel_type;
+    if (updates.owner_name !== undefined) baseData.owner_name = updates.owner_name;
+    if (updates.emergency_contact1 !== undefined) baseData.emergency_contact1 = updates.emergency_contact1;
+    if (updates.emergency_contact2 !== undefined) baseData.emergency_contact2 = updates.emergency_contact2;
+    if (updates.zip_code !== undefined) baseData.zip_code = updates.zip_code;
+
+    await tx.hotels.update({ where: { hotel_id: hotelId }, data: baseData });
+
+    // 2. details
+    if (updates.details) {
+      const d = updates.details;
+      await tx.hotel_details.upsert({
+        where: { hotel_id: hotelId },
+        update: {
+          description: d.description || null,
+          reception_no1: d.reception_no1 || null,
+          reception_no2: d.reception_no2 || null,
+          star_rating: d.star_rating ? parseFloat(d.star_rating) : null,
+          guest_rating: d.guest_rating ?? 0,
+        },
+        create: {
+          hotel_id: hotelId,
+          description: d.description || null,
+          reception_no1: d.reception_no1 || null,
+          reception_no2: d.reception_no2 || null,
+          star_rating: d.star_rating ? parseFloat(d.star_rating) : null,
+          guest_rating: d.guest_rating ?? 0,
+        },
+      });
+    }
+
+    // 3. amenities
+    if (updates.amenities) {
+      await tx.hotel_amenities.deleteMany({ where: { hotel_id: hotelId } });
+      const rows: any[] = [];
+      for (const name of updates.amenities) {
+        const amen = await tx.amenities.findUnique({ where: { name } });
+        if (amen) rows.push({ hotel_id: hotelId, amenity_id: amen.id });
+      }
+      if (rows.length) await tx.hotel_amenities.createMany({ data: rows });
+    }
+
+    // 4. images
+    if (updates.images) {
+      await tx.hotel_images.deleteMany({ where: { hotel_id: hotelId } });
+      const imgs = updates.images.slice(0, 8).map((url: string) => ({ hotel_id: hotelId, image_url: url }));
+      if (imgs.length) await tx.hotel_images.createMany({ data: imgs });
+    }
+
+    // return full hotel
+    return tx.hotels.findUnique({
+      where: { hotel_id: hotelId },
+      include: {
+        hotel_details: true,
+        hotel_amenities: { include: { amenity: true } },
+        hotel_images: true,
+      },
+    });
   });
 
-  if (!existingHotel) {
-    throw new Error("HOTEL_NOT_FOUND");
-  }
-
-  // Build update data - only include provided fields
-  const updateData: any = {};
-  if (updates.name !== undefined) updateData.name = updates.name;
-  if (updates.email !== undefined) updateData.email = updates.email;
-  if (updates.address !== undefined) updateData.address = updates.address;
-  if (updates.city !== undefined) updateData.city = updates.city;
-  if (updates.hotel_type !== undefined) updateData.hotel_type = updates.hotel_type;
-  if (updates.owner_name !== undefined) updateData.owner_name = updates.owner_name;
-  if (updates.description !== undefined) updateData.description = updates.description;
-  if (updates.star_rating !== undefined) {
-    updateData.star_rating = updates.star_rating ? parseFloat(updates.star_rating) : null;
-  }
-  if (updates.emergency_contact1 !== undefined) updateData.emergency_contact1 = updates.emergency_contact1;
-  if (updates.emergency_contact2 !== undefined) updateData.emergency_contact2 = updates.emergency_contact2;
-  if (updates.reception_no1 !== undefined) updateData.reception_no1 = updates.reception_no1;
-  if (updates.reception_no2 !== undefined) updateData.reception_no2 = updates.reception_no2;
-  if (updates.zip_code !== undefined) updateData.zip_code = updates.zip_code;
-
-  // Update hotel
-  const updated = await prisma.hotels.update({
-    where: { hotel_id: hotelId },
-    data: updateData,
-    select: {
-      hotel_id: true,
-      name: true,
-      email: true,
-      city: true,
-      approval_status: true,
-      updated_at: true,
-    },
-  });
-
-  return updated;
+  return hotel;
 }
 
 /**
@@ -368,17 +433,14 @@ export async function updateHotelApprovalStatus(
     approval_status: status,
   };
 
-  // Set published_at when publishing
   if (status === "PUBLISHED" && !existingHotel.published_at) {
     updateData.published_at = new Date();
   }
 
-  // Set approved_by if provided
   if (approvedBy) {
     updateData.approved_by = approvedBy;
   }
 
-  // Update hotel
   const updated = await prisma.hotels.update({
     where: { hotel_id: hotelId },
     data: updateData,

@@ -35,10 +35,22 @@ const router = Router();
 
 /**
  * POST /create
- * Create a new hotel
+ * Create a new hotel (optionally with details, amenities, images, and admin)
  * @requires Authentication
- * @body {name, email?, city?, address?, hotel_type?, owner_name?, description?, star_rating?}
- * @returns {hotel_id, name, email, city, approval_status, created_at}
+ * @body {
+ *   name,
+ *   email?,
+ *   city?,
+ *   address?,
+ *   hotel_type?,
+ *   owner_name?,
+ *   zip_code?,
+ *   details?: { description?, reception_no1?, reception_no2?, star_rating?, guest_rating? },
+ *   amenities?: string[],
+ *   images?: string[],
+ *   admin?: { name, email, password, phone?, nid_no?, manager_name?, manager_phone? }
+ * }
+ * @returns {hotel_id, name, email, city, approval_status, created_at, hotel_details?, hotel_amenities?, hotel_images?, hotel_admins?}
  */
 router.post("/create", authenticate, createHotelController);
 

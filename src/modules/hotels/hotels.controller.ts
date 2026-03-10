@@ -82,8 +82,35 @@ export async function createHotelController(
       return;
     }
 
-    // Call service with amenities and images
-    const hotel = hotelData.amenities || hotelData.images 
+    // If amenities/images/admin provided use the richer creator
+    const needsDetails = hotelData.amenities || hotelData.images || hotelData.admin;
+
+    // optional admin validation when admin details are provided
+    if (hotelData.admin) {
+      const adminErrors: string[] = [];
+      const { name, email, password } = hotelData.admin;
+      if (!name || typeof name !== "string") {
+        adminErrors.push("Admin name is required and must be a string");
+      }
+      if (!email || typeof email !== "string") {
+        adminErrors.push("Admin email is required and must be a string");
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        adminErrors.push("Admin email is invalid");
+      }
+      if (!password || typeof password !== "string") {
+        adminErrors.push("Admin password is required and must be a string");
+      }
+      if (adminErrors.length) {
+        res.status(400).json({
+          success: false,
+          message: "Validation failed",
+          error: { code: "VALIDATION_ERROR", details: adminErrors },
+        });
+        return;
+      }
+    }
+
+    const hotel = needsDetails
       ? await createHotelWithDetails(hotelData, req.actor.id)
       : await createHotel(hotelData, req.actor.id);
 
@@ -94,6 +121,18 @@ export async function createHotelController(
       data: hotel,
     });
   } catch (error: any) {
+    // log for debugging
+    console.error("createHotelController error", error);
+    // handle specific errors thrown during creation
+    if (error.message === "EMAIL_ALREADY_EXISTS") {
+      res.status(400).json({
+        success: false,
+        message: "Email already exists",
+        error: { code: "EMAIL_ALREADY_EXISTS" },
+      });
+      return;
+    }
+
     // Unexpected error
     res.status(500).json({
       success: false,

@@ -52,55 +52,72 @@ export function validateCreateHotelInput(hotelData: any): {
     errors.push("Hotel name must be at least 3 characters");
   }
 
-  // Email (optional)
-  if (hotelData?.email !== undefined && hotelData.email !== null && hotelData.email !== "") {
-    if (typeof hotelData.email !== "string") {
-      errors.push("Hotel email must be a string");
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hotelData.email)) {
-      errors.push("Hotel email is invalid");
+  // Optional flat fields (email, address, city, hotel_type, owner_name, zip_code)
+  const optionalString = (field: any, name: string) => {
+    if (field !== undefined && field !== null) {
+      if (typeof field !== "string") {
+        errors.push(`${name} must be a string`);
+      }
+    }
+  };
+  optionalString(hotelData?.email, "Hotel email");
+  optionalString(hotelData?.address, "Hotel address");
+  optionalString(hotelData?.city, "City");
+  optionalString(hotelData?.hotel_type, "Hotel type");
+  optionalString(hotelData?.owner_name, "Owner name");
+  optionalString(hotelData?.zip_code, "Zip code");
+
+  // Details object (optional)
+  if (hotelData?.details !== undefined && hotelData.details !== null) {
+    if (typeof hotelData.details !== "object") {
+      errors.push("Details must be an object");
+    } else {
+      const d = hotelData.details;
+      optionalString(d?.description, "Description");
+      optionalString(d?.reception_no1, "Reception no 1");
+      optionalString(d?.reception_no2, "Reception no 2");
+      if (d?.star_rating !== undefined && d.star_rating !== null) {
+        const rating = parseFloat(d.star_rating);
+        if (isNaN(rating) || rating < 1 || rating > 5) {
+          errors.push("Star rating must be between 1 and 5");
+        }
+      }
+      if (d?.guest_rating !== undefined && d.guest_rating !== null) {
+        const gr = parseFloat(d.guest_rating);
+        if (isNaN(gr) || gr < 0) {
+          errors.push("Guest rating must be a number >= 0");
+        }
+      }
     }
   }
 
-  // Address (optional)
-  if (hotelData?.address !== undefined && hotelData.address !== null) {
-    if (typeof hotelData.address !== "string") {
-      errors.push("Hotel address must be a string");
+  // Amenities array (optional)
+  if (hotelData?.amenities !== undefined && hotelData.amenities !== null) {
+    if (!Array.isArray(hotelData.amenities)) {
+      errors.push("Amenities must be an array of strings");
+    } else {
+      for (const a of hotelData.amenities) {
+        if (typeof a !== "string") {
+          errors.push("Each amenity must be a string");
+          break;
+        }
+      }
     }
   }
 
-  // City (optional)
-  if (hotelData?.city !== undefined && hotelData.city !== null) {
-    if (typeof hotelData.city !== "string") {
-      errors.push("City must be a string");
-    }
-  }
-
-  // Hotel type (optional)
-  if (hotelData?.hotel_type !== undefined && hotelData.hotel_type !== null) {
-    if (typeof hotelData.hotel_type !== "string") {
-      errors.push("Hotel type must be a string");
-    }
-  }
-
-  // Owner name (optional)
-  if (hotelData?.owner_name !== undefined && hotelData.owner_name !== null) {
-    if (typeof hotelData.owner_name !== "string") {
-      errors.push("Owner name must be a string");
-    }
-  }
-
-  // Description (optional)
-  if (hotelData?.description !== undefined && hotelData.description !== null) {
-    if (typeof hotelData.description !== "string") {
-      errors.push("Description must be a string");
-    }
-  }
-
-  // Star rating (optional)
-  if (hotelData?.star_rating !== undefined && hotelData.star_rating !== null) {
-    const rating = parseFloat(hotelData.star_rating);
-    if (isNaN(rating) || rating < 1 || rating > 5) {
-      errors.push("Star rating must be between 1 and 5");
+  // Images array (optional)
+  if (hotelData?.images !== undefined && hotelData.images !== null) {
+    if (!Array.isArray(hotelData.images)) {
+      errors.push("Images must be an array of URLs");
+    } else if (hotelData.images.length > 8) {
+      errors.push("A maximum of 8 images is allowed");
+    } else {
+      for (const u of hotelData.images) {
+        if (typeof u !== "string") {
+          errors.push("Each image URL must be a string");
+          break;
+        }
+      }
     }
   }
 
@@ -125,8 +142,15 @@ export function validateUpdateHotelInput(hotelData: any): {
   errors: string[];
 } {
   const errors: string[] = [];
+  const optionalString = (field: any, name: string) => {
+    if (field !== undefined && field !== null) {
+      if (typeof field !== "string") {
+        errors.push(`${name} must be a string`);
+      }
+    }
+  };
 
-  // Check if at least one field is provided
+  // Check if at least one field is provided (including nested)
   const hasFields =
     hotelData?.name !== undefined ||
     hotelData?.email !== undefined ||
@@ -134,13 +158,10 @@ export function validateUpdateHotelInput(hotelData: any): {
     hotelData?.city !== undefined ||
     hotelData?.hotel_type !== undefined ||
     hotelData?.owner_name !== undefined ||
-    hotelData?.description !== undefined ||
-    hotelData?.star_rating !== undefined ||
-    hotelData?.emergency_contact1 !== undefined ||
-    hotelData?.emergency_contact2 !== undefined ||
-    hotelData?.reception_no1 !== undefined ||
-    hotelData?.reception_no2 !== undefined ||
-    hotelData?.zip_code !== undefined;
+    hotelData?.zip_code !== undefined ||
+    hotelData?.details !== undefined ||
+    hotelData?.amenities !== undefined ||
+    hotelData?.images !== undefined;
 
   if (!hasFields) {
     errors.push("At least one field must be provided for update");
@@ -194,18 +215,59 @@ export function validateUpdateHotelInput(hotelData: any): {
     }
   }
 
-  // Description (optional)
-  if (hotelData?.description !== undefined && hotelData.description !== null) {
-    if (typeof hotelData.description !== "string") {
-      errors.push("Description must be a string");
+  // Description, star_rating moved into details object now; ignore here
+
+  // Details object (optional)
+  if (hotelData?.details !== undefined && hotelData.details !== null) {
+    if (typeof hotelData.details !== "object") {
+      errors.push("Details must be an object");
+    } else {
+      const d = hotelData.details;
+      optionalString(d?.description, "Description");
+      optionalString(d?.reception_no1, "Reception no 1");
+      optionalString(d?.reception_no2, "Reception no 2");
+      if (d?.star_rating !== undefined && d.star_rating !== null) {
+        const rating = parseFloat(d.star_rating);
+        if (isNaN(rating) || rating < 1 || rating > 5) {
+          errors.push("Star rating must be between 1 and 5");
+        }
+      }
+      if (d?.guest_rating !== undefined && d.guest_rating !== null) {
+        const gr = parseFloat(d.guest_rating);
+        if (isNaN(gr) || gr < 0) {
+          errors.push("Guest rating must be a number >= 0");
+        }
+      }
     }
   }
 
-  // Star rating (optional)
-  if (hotelData?.star_rating !== undefined && hotelData.star_rating !== null) {
-    const rating = parseFloat(hotelData.star_rating);
-    if (isNaN(rating) || rating < 1 || rating > 5) {
-      errors.push("Star rating must be between 1 and 5");
+  // Amenities array (optional)
+  if (hotelData?.amenities !== undefined && hotelData.amenities !== null) {
+    if (!Array.isArray(hotelData.amenities)) {
+      errors.push("Amenities must be an array of strings");
+    } else {
+      for (const a of hotelData.amenities) {
+        if (typeof a !== "string") {
+          errors.push("Each amenity must be a string");
+          break;
+        }
+      }
+    }
+  }
+
+  // Images array (optional)
+  if (hotelData?.images !== undefined && hotelData.images !== null) {
+    if (!Array.isArray(hotelData.images)) {
+      errors.push("Images must be an array of URLs");
+    } else if (hotelData.images.length > 8) {
+      errors.push("A maximum of 8 images is allowed");
+    } else {
+      for (const u of hotelData.images) {
+        if (typeof u !== "string") {
+          errors.push("Each image URL must be a string");
+          break;
+        }
+      }
     }
   }
 
