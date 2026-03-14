@@ -1,0 +1,1 @@
+DESCRIBE hotel_images;
