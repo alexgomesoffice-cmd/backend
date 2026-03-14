@@ -34,6 +34,7 @@ import systemAdminFeaturesRouter from "@/modules/admin/systemAdmin/systemAdmin.f
 import hotelsRouter from "@/modules/hotels/hotels.routes";
 import roomsRouter from "@/modules/rooms/rooms.routes";
 import bookingsRouter from "@/modules/bookings/bookings.routes";
+import endUsersRouter from "@/modules/endUsers/endUsers.routes";
 
 /**
  * Create main router
@@ -119,6 +120,15 @@ router.use("/rooms", roomsRouter);
  * POST /api/bookings/:id/cancel - Cancel booking (protected)
  */
 router.use("/bookings", bookingsRouter);
+
+/**
+ * End Users Management
+ * Mounted at /api/end-users
+ * GET /api/end-users - List end users with filters/pagination (public)
+ * GET /api/end-users/:id - Get end user details (public)
+ * PUT /api/end-users/:id/block - Block/unblock end user (protected)
+ */
+router.use("/end-users", endUsersRouter);
 
 /**
  * TODO: Add more module routers as built

@@ -99,13 +99,8 @@ CREATE TABLE `hotels` (
     `hotel_type` VARCHAR(100) NULL,
     `emergency_contact1` VARCHAR(100) NULL,
     `emergency_contact2` VARCHAR(100) NULL,
-    `reception_no1` VARCHAR(32) NULL,
-    `reception_no2` VARCHAR(32) NULL,
     `owner_name` VARCHAR(150) NULL,
-    `description` TEXT NULL,
     `zip_code` VARCHAR(20) NULL,
-    `star_rating` DECIMAL(2, 1) NULL,
-    `guest_rating` DECIMAL(3, 2) NOT NULL DEFAULT 0.00,
     `created_by` INTEGER NOT NULL,
     `approval_status` ENUM('DRAFT', 'PENDING_APPROVAL', 'PUBLISHED', 'REJECTED') NOT NULL DEFAULT 'DRAFT',
     `published_at` DATETIME(3) NULL,
@@ -117,6 +112,21 @@ CREATE TABLE `hotels` (
     INDEX `hotels_approval_status_idx`(`approval_status`),
     INDEX `hotels_city_idx`(`city`),
     PRIMARY KEY (`hotel_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `hotel_details` (
+    `hotel_details_id` INTEGER NOT NULL AUTO_INCREMENT,
+    `hotel_id` INTEGER NOT NULL,
+    `description` TEXT NULL,
+    `reception_no1` VARCHAR(32) NULL,
+    `reception_no2` VARCHAR(32) NULL,
+    `star_rating` DECIMAL(2, 1) NULL,
+    `guest_rating` DECIMAL(3, 2) NOT NULL DEFAULT 0.00,
+    `updated_at` DATETIME(3) NOT NULL,
+
+    UNIQUE INDEX `hotel_details_hotel_id_key`(`hotel_id`),
+    PRIMARY KEY (`hotel_details_id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -205,15 +215,40 @@ CREATE TABLE `hotel_sub_admin_details` (
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
-CREATE TABLE `hotel_details` (
-    `hotel_details_id` INTEGER NOT NULL AUTO_INCREMENT,
-    `hotel_id` INTEGER NOT NULL,
-    `hotel_image_url` VARCHAR(500) NULL,
-    `amenity_name` VARCHAR(150) NULL,
-    `updated_at` DATETIME(3) NOT NULL,
+CREATE TABLE `amenities` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `name` VARCHAR(150) NOT NULL,
+    `icon` VARCHAR(100) NULL,
+    `context` ENUM('HOTEL', 'ROOM', 'BOTH') NOT NULL DEFAULT 'BOTH',
+    `is_active` BOOLEAN NOT NULL DEFAULT true,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
-    INDEX `hotel_details_hotel_id_idx`(`hotel_id`),
-    PRIMARY KEY (`hotel_details_id`)
+    UNIQUE INDEX `amenities_name_key`(`name`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `hotel_images` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `hotel_id` INTEGER NOT NULL,
+    `image_url` VARCHAR(500) NOT NULL,
+    `is_cover` BOOLEAN NOT NULL DEFAULT false,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `hotel_images_hotel_id_idx`(`hotel_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `hotel_amenities` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `hotel_id` INTEGER NOT NULL,
+    `amenity_id` INTEGER NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `hotel_amenities_hotel_id_idx`(`hotel_id`),
+    UNIQUE INDEX `hotel_amenities_hotel_id_amenity_id_key`(`hotel_id`, `amenity_id`),
+    PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -230,6 +265,30 @@ CREATE TABLE `hotel_rooms` (
 
     INDEX `hotel_rooms_hotel_id_idx`(`hotel_id`),
     PRIMARY KEY (`hotel_room_id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `hotel_room_images` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `hotel_room_id` INTEGER NOT NULL,
+    `image_url` VARCHAR(500) NOT NULL,
+    `is_cover` BOOLEAN NOT NULL DEFAULT false,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `hotel_room_images_hotel_room_id_idx`(`hotel_room_id`),
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `room_amenities` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `hotel_room_id` INTEGER NOT NULL,
+    `amenity_id` INTEGER NOT NULL,
+    `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+
+    INDEX `room_amenities_hotel_room_id_idx`(`hotel_room_id`),
+    UNIQUE INDEX `room_amenities_hotel_room_id_amenity_id_key`(`hotel_room_id`, `amenity_id`),
+    PRIMARY KEY (`id`)
 ) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
@@ -345,6 +404,9 @@ ALTER TABLE `hotels` ADD CONSTRAINT `hotels_created_by_fkey` FOREIGN KEY (`creat
 ALTER TABLE `hotels` ADD CONSTRAINT `hotels_approved_by_fkey` FOREIGN KEY (`approved_by`) REFERENCES `system_admins`(`system_admin_id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE `hotel_details` ADD CONSTRAINT `hotel_details_hotel_id_fkey` FOREIGN KEY (`hotel_id`) REFERENCES `hotels`(`hotel_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE `hotel_admins` ADD CONSTRAINT `hotel_admins_role_id_fkey` FOREIGN KEY (`role_id`) REFERENCES `roles`(`role_id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -366,10 +428,25 @@ ALTER TABLE `hotel_sub_admins` ADD CONSTRAINT `hotel_sub_admins_hotel_id_fkey` F
 ALTER TABLE `hotel_sub_admin_details` ADD CONSTRAINT `hotel_sub_admin_details_hotel_sub_admin_id_fkey` FOREIGN KEY (`hotel_sub_admin_id`) REFERENCES `hotel_sub_admins`(`hotel_sub_admin_id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `hotel_details` ADD CONSTRAINT `hotel_details_hotel_id_fkey` FOREIGN KEY (`hotel_id`) REFERENCES `hotels`(`hotel_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE `hotel_images` ADD CONSTRAINT `hotel_images_hotel_id_fkey` FOREIGN KEY (`hotel_id`) REFERENCES `hotels`(`hotel_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `hotel_amenities` ADD CONSTRAINT `hotel_amenities_hotel_id_fkey` FOREIGN KEY (`hotel_id`) REFERENCES `hotels`(`hotel_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `hotel_amenities` ADD CONSTRAINT `hotel_amenities_amenity_id_fkey` FOREIGN KEY (`amenity_id`) REFERENCES `amenities`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `hotel_rooms` ADD CONSTRAINT `hotel_rooms_hotel_id_fkey` FOREIGN KEY (`hotel_id`) REFERENCES `hotels`(`hotel_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `hotel_room_images` ADD CONSTRAINT `hotel_room_images_hotel_room_id_fkey` FOREIGN KEY (`hotel_room_id`) REFERENCES `hotel_rooms`(`hotel_room_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `room_amenities` ADD CONSTRAINT `room_amenities_hotel_room_id_fkey` FOREIGN KEY (`hotel_room_id`) REFERENCES `hotel_rooms`(`hotel_room_id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `room_amenities` ADD CONSTRAINT `room_amenities_amenity_id_fkey` FOREIGN KEY (`amenity_id`) REFERENCES `amenities`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `hotel_room_details` ADD CONSTRAINT `hotel_room_details_hotel_rooms_id_fkey` FOREIGN KEY (`hotel_rooms_id`) REFERENCES `hotel_rooms`(`hotel_room_id`) ON DELETE CASCADE ON UPDATE CASCADE;

@@ -258,6 +258,9 @@ export async function listHotels(
   // Build where clause
   const where: Prisma.hotelsWhereInput = {};
 
+  // Exclude soft-deleted hotels (deleted_at IS NULL)
+  where.deleted_at = null;
+
   if (filters.approval_status) {
     where.approval_status = filters.approval_status;
   }
