@@ -400,8 +400,8 @@ model hotel_amenities {
   amenity_id Int
   created_at DateTime @default(now())
 
-  hotel   hotels    @relation(fields: [hotel_id], references: [hotel_id], onDelete: Cascade)
-  amenity amenities @relation(fields: [amenity_id], references: [id], onDelete: Cascade)
+  hotel   hotels    @relation(fields: [hotel_id],   references: [hotel_id], onDelete: Cascade)
+  amenity amenities @relation(fields: [amenity_id], references: [id],       onDelete: Cascade)
 
   @@unique([hotel_id, amenity_id])
   @@index([hotel_id])
@@ -479,7 +479,7 @@ model room_amenities {
   created_at    DateTime @default(now())
 
   hotel_room hotel_rooms @relation(fields: [hotel_room_id], references: [hotel_room_id], onDelete: Cascade)
-  amenity    amenities   @relation(fields: [amenity_id], references: [id], onDelete: Cascade)
+  amenity    amenities   @relation(fields: [amenity_id],    references: [id],             onDelete: Cascade)
 
   @@unique([hotel_room_id, amenity_id])
   @@index([hotel_room_id])
@@ -542,7 +542,7 @@ model bookings {
   updated_at        DateTime      @updatedAt
 
   end_user end_users @relation(fields: [end_user_id], references: [end_user_id], onDelete: Cascade)
-  hotel    hotels    @relation(fields: [hotel_id], references: [hotel_id], onDelete: Restrict)
+  hotel    hotels    @relation(fields: [hotel_id],    references: [hotel_id],    onDelete: Restrict)
 
   booking_rooms         booking_rooms[]
   room_booking_trackers room_booking_trackers[]
@@ -570,7 +570,7 @@ model booking_rooms {
   subtotal        Decimal  @db.Decimal(12, 2)
   created_at      DateTime @default(now())
 
-  booking    bookings    @relation(fields: [booking_id], references: [booking_id], onDelete: Cascade)
+  booking    bookings    @relation(fields: [booking_id],    references: [booking_id],    onDelete: Cascade)
   hotel_room hotel_rooms @relation(fields: [hotel_room_id], references: [hotel_room_id], onDelete: Restrict)
 
   @@index([booking_id])
@@ -596,9 +596,9 @@ model room_booking_trackers {
   created_at            DateTime      @default(now())
   updated_at            DateTime      @updatedAt
 
-  booking           bookings           @relation(fields: [booking_id], references: [booking_id], onDelete: Cascade)
+  booking           bookings           @relation(fields: [booking_id],            references: [booking_id],            onDelete: Cascade)
   hotel_room_detail hotel_room_details @relation(fields: [hotel_room_details_id], references: [hotel_room_details_id], onDelete: Restrict)
-  hotel_room        hotel_rooms        @relation(fields: [hotel_room_id], references: [hotel_room_id], onDelete: Restrict)
+  hotel_room        hotel_rooms        @relation(fields: [hotel_room_id],         references: [hotel_room_id],         onDelete: Restrict)
 
   @@unique([hotel_room_details_id, check_in, check_out])
   @@index([hotel_room_id, check_in, check_out])
